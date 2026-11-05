@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import { Check, CheckCircle2, ChevronRight, Clock3, Download, FolderOpen, GitBranch, HelpCircle, Layers3, LayoutGrid, LayoutTemplate, LoaderCircle, Pause, Play, Plus, Radio, RotateCcw, Send, ShieldCheck, Square, Table2, Unplug, Workflow, X } from 'lucide-react';
+import { BookOpen, Check, CheckCircle2, ChevronRight, Clock3, Download, FolderOpen, GitBranch, HelpCircle, Layers3, LayoutGrid, LayoutTemplate, LoaderCircle, Pause, Play, Plus, Radio, RotateCcw, ShieldCheck, Square, Table2, Unplug, Workflow, X } from 'lucide-react';
 import type { Connection } from '@xyflow/react';
-import { LiveRemoteAdapter, createEmptyProject, defaultConfig, disconnectedState, emptyCatalog, findBranch, type ConnectionConfig } from './adapters/live';
+import { LiveRemoteAdapter, createEmptyProject, defaultConfig, disconnectedState, emptyCatalog, findBranch, type ConnectionConfig, type LiveState } from './adapters/live';
 import { SequenceEngine } from './core/engine';
 import { autoLayout, parseProject, validateProject } from './core/project';
 import { insertPortReference } from './core/references';
@@ -12,6 +12,12 @@ import SignalTree from './components/SignalTree';
 import Inspector from './components/Inspector';
 import Monitor from './components/Monitor';
 import ConnectionDialog from './components/ConnectionDialog';
+import { SignalStore, SignalStoreContext } from './live/SignalStore';
+import { useEventCallback } from './live/useEventCallback';
+import { acceptsGeneratorSignal, isGeneratorKind } from './core/generators';
+import { createStep } from './core/blocks';
+import BlockLibrary from './components/BlockLibrary';
+import isgLogo from '../ISG_Logo_klein.png';
 
 const STORAGE_KEY = 'virtuos-signal-studio.live-project.v1';
 const statusLabels: Record<RunStatus, string> = { idle: 'Bereit', running: 'Wird ausgeführt', paused: 'Pausiert', completed: 'Abgeschlossen', stopped: 'Gestoppt', error: 'Fehler' };
@@ -31,7 +37,9 @@ export default function App() {
   const [remote] = useState(() => new LiveRemoteAdapter());
   const engine = useMemo(() => new SequenceEngine(remote, catalog), [remote, catalog]);
   const [snapshot, setSnapshot] = useState(() => engine.snapshot());
-  const [session, setSession] = useState(disconnectedState);
+  const [session, setSessionState] = useState(disconnectedState);
+  const [signalStore] = useState(() => new SignalStore());
+  const setSession = useCallback((state: LiveState) => { signalStore.publish(state); setSessionState(state); }, [signalStore]);
   const values = session.values;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedSignalId, setSelectedSignalId] = useState<string | null>(null);
@@ -45,6 +53,7 @@ export default function App() {
   const [loadingStructure, setLoadingStructure] = useState(false);
   const [connectionBusy, setConnectionBusy] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 1280);
   const importInput = useRef<HTMLInputElement>(null);
   const locked = snapshot.status === 'running' || snapshot.status === 'paused';
   const editingLocked = locked || loadingStructure || connectionBusy;
@@ -88,10 +97,10 @@ export default function App() {
       })();
     }, 100);
     return () => { disposed = true; clearInterval(timer); };
-  }, [remote, engine]);
+  }, [remote, engine, setSession]);
 
-  const selectStep = (id: string | null) => { setSelectedId(id); setInspectorMode('step'); };
-  const selectSignal = (id: string) => { setSelectedSignalId(id); setInspectorMode('signal'); };
+  const selectStep = useCallback((id: string | null) => { setSelectedId(id); setInspectorMode('step'); }, []);
+  const selectSignal = useCallback((id: string) => { setSelectedSignalId(id); setInspectorMode('signal'); }, []);
   const refreshRun = () => { setSnapshot(engine.snapshot()); setSession(remote.state); };
   const reset = () => { engine.reset(); refreshRun(); };
 
@@ -136,18 +145,15 @@ export default function App() {
 
   const addStep = (kind: StepKind, signalId?: string, position?: { x: number; y: number }) => {
     if (editingLocked) return;
-    const signal = kind === 'set' || kind === 'wait'
-      ? catalog.signals.find(s => s.id === signalId) ?? catalog.signals.find(s => s.type !== 'Unsupported' && s.readable !== false && (kind !== 'set' || s.writable))
-      : undefined;
+    const chosen = catalog.signals.find(signal => signal.id === (signalId ?? selectedSignalId));
+    const signal = isGeneratorKind(kind) ? chosen && acceptsGeneratorSignal(kind, chosen) ? chosen : undefined
+      : kind === 'set' || kind === 'wait'
+        ? (signalId ? chosen : chosen?.type !== 'Unsupported' && chosen?.readable !== false && (kind !== 'set' || chosen?.writable) ? chosen : undefined)
+          ?? catalog.signals.find(s => s.type !== 'Unsupported' && s.readable !== false && (kind !== 'set' || s.writable))
+        : undefined;
     if (signal && (signal.type === 'Unsupported' || signal.readable === false)) { addPortReference(signal.id, position ?? { x: 320, y: 100 }); return; }
     const id = crypto.randomUUID();
-    const step: Step = {
-      id, kind, label: kind === 'set' ? 'Signal setzen' : kind === 'wait' ? 'Auf Signal warten' : 'Zeit warten',
-      position: position ?? { x: 0, y: 0 },
-      ...(kind === 'set' || kind === 'wait' ? { signalId: signal?.id, value: signal?.type === 'Bool' ? true : signal?.type === 'Double' ? 0 : '' } : {}),
-      ...(kind === 'wait' ? { waitMode: 'level', comparator: 'eq', timeoutMs: 10000 } : {}),
-      ...(kind === 'delay' ? { durationMs: 1000 } : {}),
-    };
+    const step = createStep(kind, signal, position ?? { x: 0, y: 0 }, id);
     setProject(old => {
       const end = old.steps.find(s => s.kind === 'end');
       const chosen = old.steps.find(s => s.id === selectedId);
@@ -228,13 +234,40 @@ export default function App() {
     setProject(old => insertPortReference(old, catalog, signalId, position, id));
     setSelectedId(id); selectSignal(signalId);
   };
-  const toggleWatch = (id: string) => setWatched(old => old.includes(id) ? old.filter(s => s !== id) : [...old, id]);
+  const toggleWatch = useCallback((id: string) => setWatched(old => old.includes(id) ? old.filter(s => s !== id) : [...old, id]), []);
   const validate = () => { const errors = validateProject(project, catalog); setValidation(errors); showNotice(errors.length ? `${errors.length} Fehler im Ablauf gefunden.` : 'Ablauf geprüft. Alle Schritte sind gültig.', errors.length > 0); };
 
-  return <div className="app-shell">
+  const onGraphDelete = useEventCallback(deleteSteps);
+  const onGraphConnect = useEventCallback(connect);
+  const onGraphAdd = useEventCallback(addStep);
+  const onGraphAddBlock = useEventCallback(addBlock);
+  const onGraphAddPortReference = useEventCallback(addPortReference);
+  const onLoadStructure = useEventCallback(() => void loadStructure());
+  const closeLibrary = useCallback(() => setLibraryOpen(false), []);
+  const onGraphEdgesDelete = useEventCallback((ids: string[]) => {
+    if (!editingLocked && ids.length) setProject(old => ({ ...old, links: old.links.filter(link => !ids.includes(link.id)) }));
+  });
+  const onGraphPositions = useEventCallback((positions: { id: string; x: number; y: number }[]) => {
+    if (editingLocked || positions.length === 0) return;
+    setProject(old => {
+      let changed = false;
+      function move<T extends { id: string; position: { x: number; y: number } }>(entry: T): T {
+        const position = positions.find(position => position.id === entry.id);
+        if (!position || (entry.position.x === position.x && entry.position.y === position.y)) return entry;
+        changed = true;
+        return { ...entry, position: { x: position.x, y: position.y } };
+      }
+      const steps = old.steps.map(move);
+      const blocks = old.blocks?.map(move);
+      const portReferences = old.portReferences?.map(move);
+      return changed ? { ...old, steps, blocks, portReferences } : old;
+    });
+  });
+
+  return <SignalStoreContext.Provider value={signalStore}><div className="app-shell">
     <header className="app-header">
-      <div className="brand"><div className="isg-logo">ISG<span>virtuos</span></div><div className="brand-divider" /><div><span className="eyebrow">NOCODE / LOWCODE LAB</span><h1>Signal Studio<span className="version-tag">PROTOTYP</span></h1></div></div>
-      <div className="header-actions"><span className={`environment-badge ${session.connected ? 'is-connected' : ''}`}><span className="demo-dot" />{session.connected ? session.ready && !session.stale ? 'LIVE · VERBUNDEN' : 'VERBUNDEN · WARTET' : 'NICHT VERBUNDEN'}</span><button className="button" onClick={() => setDialogOpen(true)}><Unplug size={15} /><span>Schnittstellen</span></button><button className="icon-button help-button" title="Verbindung konfigurieren" aria-label="Verbindung konfigurieren" onClick={() => setDialogOpen(true)}><HelpCircle size={19} /></button></div>
+      <div className="brand"><img className="brand-logo" src={isgLogo} alt="ISG" /><div className="brand-divider" /><div><span className="eyebrow">NOCODE / LOWCODE LAB</span><h1>Signal Studio<span className="version-tag">PROTOTYP</span></h1></div></div>
+      <div className="header-actions"><button className={`button library-toggle ${libraryOpen ? 'is-active' : ''}`} onClick={() => setLibraryOpen(open => !open)} aria-label="Bausteinbibliothek ein- oder ausblenden" aria-expanded={libraryOpen} aria-controls="block-library-panel"><BookOpen size={15} /><span>Bibliothek</span></button><span className={`environment-badge ${session.connected ? 'is-connected' : ''}`}><span className="demo-dot" />{session.connected ? session.ready && !session.stale ? 'LIVE · VERBUNDEN' : 'VERBUNDEN · WARTET' : 'NICHT VERBUNDEN'}</span><button className="button" onClick={() => setDialogOpen(true)}><Unplug size={15} /><span>Schnittstellen</span></button><button className="icon-button help-button" title="Verbindung konfigurieren" aria-label="Verbindung konfigurieren" onClick={() => setDialogOpen(true)}><HelpCircle size={19} /></button></div>
     </header>
     <div className="project-bar">
       <div className="project-identity"><span className="project-file-icon"><Workflow size={21} /></span><div><div className="project-name-row"><input aria-label="Projektname" value={project.name} disabled={editingLocked} onChange={e => setProject(old => ({ ...old, name: e.target.value }))} /><span className="project-extension">.signal</span></div><div className="project-meta">Arbeitsbereich <ChevronRight size={11} />{catalog.name}<span className="meta-divider">/</span><span className={`save-indicator ${storageError ? 'save-error' : ''}`}>{storageError ? 'Lokale Speicherung nicht verfügbar' : saved ? <><Check size={10} /> Lokal gespeichert</> : 'Wird gespeichert …'}</span></div></div></div>
@@ -242,10 +275,10 @@ export default function App() {
     </div>
     <Tabs.Root defaultValue="flow" className="editor-tabs-root">
       <div className="approach-bar"><Tabs.List className="approach-tabs" aria-label="Modellierungsansatz">{editorModules.map((module, index) => { const Icon = tabIcons[index]; return <Tabs.Trigger key={module.id} value={module.id} disabled={!module.available} className="approach-tab" title={module.description}><Icon size={16} />{module.label}{!module.available && <span>GEPLANT</span>}</Tabs.Trigger>; })}</Tabs.List><span className="approach-note"><LayoutTemplate size={13} /> Ein Modell. Verschiedene Ansätze.</span></div>
-      <Tabs.Content value="flow" className="workspace">
+      <Tabs.Content value="flow" className={`workspace ${libraryOpen ? 'library-open' : ''}`}>
+        {libraryOpen && <><button className="library-backdrop" aria-label="Bausteinbibliothek ausblenden" onClick={closeLibrary} /><BlockLibrary locked={editingLocked} onAdd={onGraphAdd} onClose={closeLibrary} /></>}
         <aside className="left-sidebar">
-          <SignalTree catalog={catalog} values={values} errors={session.errors} stale={session.stale || !session.connected} selectedId={selectedSignalId} watched={watched} locked={editingLocked} loading={loadingStructure} onSelect={selectSignal} onWatch={toggleWatch} onReload={() => void loadStructure()} />
-          <section className="step-library"><div className="panel-heading"><h2><LayoutGrid size={15} /> Ablaufschritte</h2><span className="small-label">3</span></div><p>Nach dem ausgewählten Schritt einfügen.</p>{([{ kind: 'set', Icon: Send, text: 'Signal setzen', detail: 'Wert schreiben' }, { kind: 'wait', Icon: Radio, text: 'Auf Signal warten', detail: 'Bedingung oder Flanke' }, { kind: 'delay', Icon: Clock3, text: 'Zeit warten', detail: 'Verzögerung einfügen' }] as const).map(item => <button key={item.kind} className={`library-item kind-${item.kind}`} disabled={editingLocked || !catalog.id} onClick={() => addStep(item.kind)}><span className="kind-icon"><item.Icon size={16} /></span><span><strong>{item.text}</strong><small>{item.detail}</small></span><Plus size={15} /></button>)}</section>
+          <SignalTree catalog={catalog} stale={session.stale || !session.connected} selectedId={selectedSignalId} watched={watched} locked={editingLocked} loading={loadingStructure} onSelect={selectSignal} onWatch={toggleWatch} onReload={onLoadStructure} />
           <div className="sidebar-bottom"><ShieldCheck size={15} /><div><strong>OVA-Struktur · RemoteAPI-Werte</strong><p>Das Verhalten bleibt im virtuos-Modell.</p></div></div>
         </aside>
         <main className="main-workspace">
@@ -256,13 +289,8 @@ export default function App() {
           {validation && validation.length > 0 && <div className="validation-panel" role="alert"><div><strong>Ablauf prüfen</strong><button className="icon-button" onClick={() => setValidation(null)} aria-label="Prüfung schließen"><X size={14} /></button></div><ul>{validation.map(error => <li key={error}>{error}</li>)}</ul></div>}
           {snapshot.error && <div className="runtime-error" role="alert"><Radio size={15} /><span>{snapshot.error}</span><button className="icon-button" aria-label="Fehler zurücksetzen" onClick={reset}><X size={14} /></button></div>}
           {session.modelChanged && <div className="runtime-error" role="alert"><span>Das virtuos-Modell wurde gewechselt. „Get Model Structure“ erneut ausführen.</span></div>}
-          <FlowEditor project={project} catalog={catalog} snapshot={snapshot} values={values} errors={session.errors} stale={session.stale || !session.connected} selectedId={selectedId} locked={editingLocked} onSelect={selectStep} onSelectSignal={selectSignal}
-            onPositions={positions => setProject(old => ({ ...old,
-              steps: old.steps.map(s => { const p = positions.find(p => p.id === s.id); return p ? { ...s, position: { x: p.x, y: p.y } } : s; }),
-              blocks: old.blocks?.map(b => { const p = positions.find(p => p.id === b.id); return p ? { ...b, position: { x: p.x, y: p.y } } : b; }),
-              portReferences: old.portReferences?.map(reference => { const p = positions.find(p => p.id === reference.id); return p ? { ...reference, position: { x: p.x, y: p.y } } : reference; }),
-            }))}
-            onDelete={deleteSteps} onEdgesDelete={ids => { if (!editingLocked && ids.length) setProject(old => ({ ...old, links: old.links.filter(l => !ids.includes(l.id)) })); }} onConnect={connect} onAdd={addStep} onAddBlock={addBlock} onAddPortReference={addPortReference} />
+          <FlowEditor project={project} catalog={catalog} snapshot={snapshot} selectedId={selectedId} locked={editingLocked} onSelect={selectStep} onSelectSignal={selectSignal}
+            onPositions={onGraphPositions} onDelete={onGraphDelete} onEdgesDelete={onGraphEdgesDelete} onConnect={onGraphConnect} onAdd={onGraphAdd} onAddBlock={onGraphAddBlock} onAddPortReference={onGraphAddPortReference} />
           <Monitor catalog={catalog} values={values} errors={session.errors} stale={session.stale || !session.connected} updatedAt={session.updatedAt} watched={watched} snapshot={snapshot} onUnwatch={toggleWatch} onSelectSignal={selectSignal} />
         </main>
         <Inspector step={selectedStep} index={project.steps.findIndex(s => s.id === selectedId)} catalog={catalog} values={values} session={session} selectedSignalId={selectedSignalId} mode={inspectorMode} onMode={setInspectorMode} locked={editingLocked} active={snapshot.activeId === selectedId} stepElapsedMs={snapshot.stepElapsedMs} onChange={updateStep} onDelete={() => selectedId && deleteSteps([selectedId])} onForce={(id, value) => void force(id, value)} />
@@ -271,5 +299,5 @@ export default function App() {
     <footer className="status-bar"><div><span className={`demo-dot ${session.connected ? 'connected-dot' : ''}`} /><strong>RemoteAPI</strong><span className="connection-message" title={session.message}>{loadingStructure ? 'OVA · Modellstruktur wird ausgelesen …' : session.message}</span>{session.forcedIds.length > 0 && <button className="footer-force-button" onClick={() => setDialogOpen(true)}>{session.forcedIds.length} Force aktiv</button>}</div><div><span>{Object.keys(values).length} / {catalog.signals.length} Portwerte</span><span className="footer-divider" /><code>{(snapshot.elapsedMs / 1000).toFixed(1)} s Ablaufzeit</code><span className="footer-version">v0.2</span></div></footer>
     {notice && <div className={`toast ${notice.error ? 'toast-error' : ''}`} role={notice.error ? 'alert' : 'status'}>{notice.error ? <Radio size={17} /> : <CheckCircle2 size={17} />}<span>{notice.text}</span><button className="icon-button" onClick={() => setNotice(null)} aria-label="Meldung schließen"><X size={14} /></button></div>}
     <ConnectionDialog open={dialogOpen} config={config} session={session} busy={connectionBusy || loadingStructure} locked={locked} onClose={() => setDialogOpen(false)} onConfig={setConfig} onConnect={() => void connectionAction('connect')} onDisconnect={() => void connectionAction('disconnect')} onRelease={() => void connectionAction('release')} />
-  </div>;
+  </div></SignalStoreContext.Provider>;
 }

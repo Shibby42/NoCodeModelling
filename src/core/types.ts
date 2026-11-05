@@ -34,7 +34,15 @@ export interface ModelCatalog {
   projectName?: string;
 }
 
-export type StepKind = 'start' | 'set' | 'wait' | 'delay' | 'end';
+export type GeneratorKind = 'pulse' | 'square' | 'ramp' | 'sine' | 'triangle' | 'sawtooth';
+export type ScalarLevel = number | boolean;
+export type GeneratorConfig =
+  | { kind: 'pulse'; low: ScalarLevel; high: ScalarLevel; delayMs: number; widthMs: number }
+  | { kind: 'square'; low: ScalarLevel; high: ScalarLevel; periodMs: number; dutyCycle: number }
+  | { kind: 'ramp'; start: number; end: number }
+  | { kind: 'sine'; amplitude: number; offset: number; periodMs: number; phaseDeg: number }
+  | { kind: 'triangle' | 'sawtooth'; low: number; high: number; periodMs: number };
+export type StepKind = 'start' | 'set' | 'wait' | 'delay' | 'end' | GeneratorKind;
 export type Comparator = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte';
 export type WaitMode = 'level' | 'rising' | 'falling';
 
@@ -49,6 +57,7 @@ export interface Step {
   waitMode?: WaitMode;
   timeoutMs?: number;
   durationMs?: number;
+  generator?: GeneratorConfig;
 }
 
 export interface Link { id: string; source: string; target: string }
@@ -107,6 +116,7 @@ export const editorModules: EditorModule[] = [
 
 export const stepLabels: Record<StepKind, string> = {
   start: 'Start', set: 'Signal setzen', wait: 'Auf Signal warten', delay: 'Zeit warten', end: 'Ende',
+  pulse: 'Puls', square: 'Rechteck', ramp: 'Rampe', sine: 'Sinus', triangle: 'Dreieck', sawtooth: 'Sägezahn',
 };
 export const comparatorLabels: Record<Comparator, string> = {
   eq: '=', neq: '≠', gt: '>', gte: '≥', lt: '<', lte: '≤',

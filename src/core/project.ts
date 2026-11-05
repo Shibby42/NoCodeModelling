@@ -1,4 +1,5 @@
 import { matchesType, type ModelCatalog, type Project, type Step } from './types';
+import { isGeneratorConfig, isGeneratorKind, validateGenerator } from './generators';
 
 export function validateProject(project: Project, catalog: ModelCatalog): string[] {
   const errors: string[] = [];
@@ -34,6 +35,11 @@ export function validateProject(project: Project, catalog: ModelCatalog): string
       }
     }
     if (step.kind === 'delay' && (step.durationMs === undefined || !Number.isFinite(step.durationMs) || step.durationMs < 0)) errors.push(`${step.label}: Wartezeit muss mindestens 0 sein.`);
+    if (isGeneratorKind(step.kind)) {
+      const signal = catalog.signals.find(signal => signal.id === step.signalId);
+      if (!signal) errors.push(`${step.label}: Ausgangssignal auswählen.`);
+      errors.push(...validateGenerator(step, signal).map(error => `${step.label}: ${error}`));
+    }
   }
   if (starts.length === 1) {
     const visited = new Set<string>();
@@ -58,7 +64,7 @@ export function parseProject(text: string): Project {
   }
   for (const step of value.steps) {
     if (!isRecord(step) || typeof step.id !== 'string' || !step.id || typeof step.label !== 'string'
-      || typeof step.kind !== 'string' || !['start', 'set', 'wait', 'delay', 'end'].includes(step.kind)
+      || typeof step.kind !== 'string' || (!['start', 'set', 'wait', 'delay', 'end'].includes(step.kind) && !isGeneratorKind(step.kind))
       || !isRecord(step.position) || typeof step.position.x !== 'number' || !Number.isFinite(step.position.x)
       || typeof step.position.y !== 'number' || !Number.isFinite(step.position.y)
       || (step.signalId !== undefined && typeof step.signalId !== 'string')
@@ -70,6 +76,8 @@ export function parseProject(text: string): Project {
       || (step.durationMs !== undefined && (typeof step.durationMs !== 'number' || !Number.isFinite(step.durationMs)))) {
       throw new Error('Die Datei enthält einen ungültigen Schritt.');
     }
+    if ((step.generator !== undefined && !isGeneratorConfig(step.generator))
+      || (isGeneratorKind(step.kind) && (!isGeneratorConfig(step.generator) || step.generator.kind !== step.kind))) throw new Error('Die Datei enthält ungültige Generatorparameter.');
   }
   for (const link of value.links) {
     if (!isRecord(link) || typeof link.id !== 'string' || !link.id || typeof link.source !== 'string' || typeof link.target !== 'string') {

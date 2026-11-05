@@ -15,6 +15,15 @@ describe('Live-Verbindung und leerer Startzustand', () => {
     expect(markup).not.toContain('Transferstation');
     expect(emptyCatalog.signals).toEqual([]);
   });
+  it('zeigt die eigene Bausteinbibliothek und das bereitgestellte ISG-Logo', () => {
+    const markup = renderToStaticMarkup(<App />);
+    expect(markup).toContain('id="block-library-panel"');
+    expect(markup).toContain('aria-label="Bausteinbibliothek"');
+    expect(markup.indexOf('id="block-library-panel"')).toBeLessThan(markup.indexOf('class="left-sidebar"'));
+    expect(markup).not.toContain('class="step-library"');
+    expect(markup).toContain('ISG_Logo_klein.png');
+    for (const name of ['Konstante', 'Puls', 'Rechteck', 'Rampe', 'Sinus', 'Dreieck', 'Sägezahn']) expect(markup).toContain(name);
+  });
   it('speichert Modellreferenzen mit Positionen im Projekt', () => {
     const project = { ...createEmptyProject('model'), blocks: [{ id: 'placement', blockId: 'block', position: { x: 100, y: 200 } }] };
     expect(parseProject(JSON.stringify(project))).toEqual(project);

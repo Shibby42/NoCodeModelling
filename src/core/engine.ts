@@ -1,4 +1,5 @@
 import { validateProject } from './project';
+import { isGeneratorKind, sampleGenerator, generatorDuration } from './generators';
 import { compare, formatValue, matchesType, type ModelCatalog, type Project, type RemoteApiPort, type RunSnapshot, type SignalValue, type Step } from './types';
 
 export class SequenceEngine {
@@ -9,6 +10,9 @@ export class SequenceEngine {
   private ticking = false;
   private nextLogId = 0;
   private state: RunSnapshot = this.initialState();
+  private snapshotCache: RunSnapshot | undefined;
+  private lastGeneratorValue: SignalValue | undefined;
+  private pulseStartedAt: number | null = null;
 
   constructor(private remote: RemoteApiPort, private catalog: ModelCatalog) {}
 
@@ -16,9 +20,11 @@ export class SequenceEngine {
     return { status: 'idle', activeId: null, completedIds: [], elapsedMs: 0, stepElapsedMs: 0, values: {}, logs: [], error: null };
   }
 
-  snapshot(): RunSnapshot { return structuredClone(this.state); }
+  /** Stable, immutable-to-consumers snapshot until the next state change. */
+  snapshot(): RunSnapshot { return this.snapshotCache ??= structuredClone(this.state); }
 
   private log(message: string, level: 'info' | 'success' | 'error' = 'info') {
+    this.snapshotCache = undefined;
     this.state.logs = [...this.state.logs.slice(-199), { id: ++this.nextLogId, timeMs: this.state.elapsedMs, level, message }];
   }
 
@@ -42,7 +48,7 @@ export class SequenceEngine {
     this.state.status = 'stopped';
     this.log('Ablauf gestoppt. Bereits gesetzte Signalwerte bleiben erhalten.');
   }
-  reset() { this.generation++; this.state = this.initialState(); this.project = null; this.entered = false; }
+  reset() { this.generation++; this.state = this.initialState(); this.snapshotCache = undefined; this.project = null; this.entered = false; }
 
   private finishStep(step: Step) {
     this.state.completedIds.push(step.id);
@@ -72,6 +78,7 @@ export class SequenceEngine {
         if (!matchesType(values[signal.id], signal.type)) throw new Error(`Ungültiger oder fehlender Wert: ${signal.name}.`);
       }
       this.state.values = values;
+      this.snapshotCache = undefined;
       this.state.elapsedMs += deltaMs;
       const step = this.project.steps.find(s => s.id === this.state.activeId)!;
       const firstTick = !this.entered;
@@ -79,6 +86,8 @@ export class SequenceEngine {
         this.entered = true;
         this.state.stepElapsedMs = 0;
         this.previousValue = step.signalId ? values[step.signalId] : undefined;
+        this.lastGeneratorValue = undefined;
+        this.pulseStartedAt = null;
         this.log(`Aktiv: ${step.label}.`);
       } else this.state.stepElapsedMs += deltaMs;
 
@@ -91,6 +100,25 @@ export class SequenceEngine {
         this.finishStep(step);
       } else if (step.kind === 'delay') {
         if (this.state.stepElapsedMs >= step.durationMs!) this.finishStep(step);
+      } else if (isGeneratorKind(step.kind)) {
+        const config = step.generator!;
+        let sample = sampleGenerator(config, this.state.stepElapsedMs, generatorDuration(step));
+        if (config.kind === 'pulse' && this.state.stepElapsedMs >= config.delayMs) {
+          // A delayed tick must not skip the entire pulse. Start its width when
+          // the active value is actually issued, then return to the rest value.
+          this.pulseStartedAt ??= this.state.stepElapsedMs;
+          const complete = this.state.stepElapsedMs - this.pulseStartedAt >= config.widthMs;
+          sample = { value: complete ? config.low : config.high, complete };
+        }
+        if (!Object.is(this.lastGeneratorValue, sample.value)) {
+          if (typeof sample.value === 'number' && !Number.isFinite(sample.value)) throw new Error('Generator hat einen nicht endlichen Ausgangswert erzeugt.');
+          await this.remote.writeSignal(step.signalId!, sample.value);
+          if (generation !== this.generation) return;
+          this.lastGeneratorValue = sample.value;
+          this.state.values[step.signalId!] = sample.value;
+          this.snapshotCache = undefined;
+        }
+        if (sample.complete) this.finishStep(step);
       } else if (step.kind === 'wait') {
         const current = values[step.signalId!];
         const condition = step.waitMode === 'rising' ? !firstTick && this.previousValue === false && current === true

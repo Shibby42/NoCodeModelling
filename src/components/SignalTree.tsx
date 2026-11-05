@@ -1,11 +1,10 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { memo, useMemo, useState, type ReactNode } from 'react';
 import { Box, ChevronDown, ChevronRight, Database, Eye, FolderTree, GripVertical, LoaderCircle, Search } from 'lucide-react';
-import { formatValue, type ModelBranch, type ModelCatalog, type SignalValue } from '../core/types';
+import { formatValue, type ModelBranch, type ModelCatalog, type SignalDefinition } from '../core/types';
+import { useSignalSnapshot } from '../live/SignalStore';
 
 interface Props {
   catalog: ModelCatalog;
-  values: Record<string, SignalValue>;
-  errors: Record<string, string>;
   stale: boolean;
   selectedId: string | null;
   watched: string[];
@@ -16,7 +15,24 @@ interface Props {
   onReload: () => void;
 }
 
-export default function SignalTree(props: Props) {
+function TreeSignalValue({ id }: { id: string }) {
+  const live = useSignalSnapshot(id);
+  return <span className={`signal-small-value ${live.value === true ? 'is-true' : ''} ${live.error || live.stale ? 'stale-value' : ''}`}>{live.error ? '—' : formatValue(live.value)}</span>;
+}
+
+const SignalRow = memo(function SignalRow({ signal, depth, selected, watched, locked, onSelect, onWatch }: {
+  signal: SignalDefinition; depth: number; selected: boolean; watched: boolean; locked: boolean;
+  onSelect: (id: string) => void; onWatch: (id: string) => void;
+}) {
+  return <div className={`signal-row ${selected ? 'selected' : ''}`} style={{ marginLeft: 20 + Math.min(depth, 8) * 12 }}>
+    <button className="signal-item" draggable={!locked} onDragStart={e => { e.dataTransfer.setData('application/signal-studio', signal.id); e.dataTransfer.effectAllowed = 'copy'; }} onClick={() => onSelect(signal.id)} title={`${signal.path}\n${signal.direction ?? ''} · ${signal.nativeType ?? signal.type}`}>
+      <GripVertical size={11} className="drag-grip" /><span className={`type-mark ${signal.type.toLowerCase()}`}>{signal.direction?.includes('IN') ? '→' : signal.direction?.includes('OUT') ? '←' : signal.type === 'Bool' ? 'B' : '#'}</span><span className="signal-name">{signal.name}</span><TreeSignalValue id={signal.id} />
+    </button>
+    <button className={`watch-button ${watched ? 'watching' : ''}`} onClick={() => onWatch(signal.id)} title={watched ? 'Aus Monitor entfernen' : 'Im Monitor beobachten'} aria-label={`${signal.name} ${watched ? 'nicht mehr beobachten' : 'beobachten'}`}><Eye size={12} /></button>
+  </div>;
+});
+
+function SignalTree(props: Props) {
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<string[]>([]);
   const signalMap = useMemo(() => new Map(props.catalog.signals.map(s => [s.id, s])), [props.catalog]);
@@ -37,13 +53,7 @@ export default function SignalTree(props: Props) {
           {depth === 0 ? <Box size={15} /> : <FolderTree size={14} />}<span>{branch.name}</span><small>{branch.signalIds.length}</small>
         </button>
       </div>
-      {open && <>{signals.map(signal => signal && <div key={signal.id} className={`signal-row ${props.selectedId === signal.id ? 'selected' : ''}`} style={{ marginLeft: 20 + Math.min(depth, 8) * 12 }}>
-        <button className="signal-item" draggable={!props.locked} onDragStart={e => { e.dataTransfer.setData('application/signal-studio', signal.id); e.dataTransfer.effectAllowed = 'copy'; }} onClick={() => props.onSelect(signal.id)} title={`${signal.path}\n${signal.direction ?? ''} · ${signal.nativeType ?? signal.type}${props.errors[signal.id] ? '\n' + props.errors[signal.id] : ''}`}>
-          <GripVertical size={11} className="drag-grip" /><span className={`type-mark ${signal.type.toLowerCase()}`}>{signal.direction?.includes('IN') ? '→' : signal.direction?.includes('OUT') ? '←' : signal.type === 'Bool' ? 'B' : '#'}</span><span className="signal-name">{signal.name}</span>
-          <span className={`signal-small-value ${props.values[signal.id] === true ? 'is-true' : ''} ${props.errors[signal.id] || props.stale ? 'stale-value' : ''}`}>{props.errors[signal.id] ? '—' : formatValue(props.values[signal.id])}</span>
-        </button>
-        <button className={`watch-button ${props.watched.includes(signal.id) ? 'watching' : ''}`} onClick={() => props.onWatch(signal.id)} title={props.watched.includes(signal.id) ? 'Aus Monitor entfernen' : 'Im Monitor beobachten'} aria-label={`${signal.name} ${props.watched.includes(signal.id) ? 'nicht mehr beobachten' : 'beobachten'}`}><Eye size={12} /></button>
-      </div>)}{children}</>}
+      {open && <>{signals.map(signal => signal && <SignalRow key={signal.id} signal={signal} depth={depth} selected={props.selectedId === signal.id} watched={props.watched.includes(signal.id)} locked={props.locked} onSelect={props.onSelect} onWatch={props.onWatch} />)}{children}</>}
     </div>;
   };
   return <section className="signal-browser">
@@ -57,3 +67,5 @@ export default function SignalTree(props: Props) {
     </> : <div className="model-tree-empty"><FolderTree size={30} /><h3>{props.loading ? 'Modell wird ausgelesen …' : 'Modellstruktur laden'}</h3><p>{props.loading ? 'Die TerminalBridge liest Bausteine und Ports aus der geöffneten virtuos-Sitzung.' : 'Öffne dein Modell und das Python-Terminal in virtuos. „Get Model Structure“ liest alle Bausteine und Ports aus.'}</p><span>Es werden keine Demo-Signale geladen.</span></div>}
   </section>;
 }
+
+export default memo(SignalTree);
