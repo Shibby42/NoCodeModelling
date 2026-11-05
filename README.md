@@ -4,6 +4,26 @@ Lokale Engineering-Oberfläche zum Vergleichen signalbasierter NoCode-/LowCode-A
 
 ## Starten
 
+### Per Doppelklick / auf einem anderen Rechner
+
+**`StartApp.cmd` doppelklicken.** Der Starter findet Python, startet den lokalen Dienst, wartet auf dessen Bereitschaft und öffnet danach die UI im **Standardbrowser** unter **http://127.0.0.1:8765**. Eine bereits laufende Signal-Studio-Instanz auf diesem Port wird wiederverwendet; deren Verbindung bleibt erhalten. Fremde Anwendungen auf dem Port werden nicht beendet.
+
+Zum Kopieren auf einen anderen Windows-Rechner werden diese Bestandteile zusammen benötigt:
+
+```text
+StartApp.cmd
+dist/                 (vollstaendiger UI-Build mit assets/)
+server/               (einschliesslich vendor/)
+```
+
+Auf dem Zielrechner sind **Python 3.9+ x64** und für die Modellanbindung eine passende **ISG-virtuos-Installation** erforderlich. Node.js ist bei mitkopiertem `dist` nicht nötig. Der Python-Interpreter wird über `SIGNAL_STUDIO_PYTHON`, `py -3`, `python` oder `python3` gefunden. Eine abweichende virtuos-Installation kann in der UI unter „Schnittstellen“ eingestellt werden.
+
+Fehlt `dist` (etwa nach einem Git-Klon), baut der Starter die UI automatisch aus dem vorhandenen Quellcode. Dafür werden Node.js/npm und beim ersten Bezug der npm-Pakete ein Internetzugang benötigt. Fehlende Betriebssystemprogramme werden nicht automatisch installiert. Fehlermeldungen bleiben im Startfenster sichtbar.
+
+Das Startfenster während der Nutzung offen lassen; **Strg+C** beendet den vom Starter gestarteten Dienst. Zum Aktualisieren des Builds nach Quellcodeänderungen: `StartApp.cmd --rebuild`. Für einen anderen lokalen Port: `StartApp.cmd --port 8766`. `--no-browser` unterdrückt die automatische Browseröffnung.
+
+### Entwicklung
+
 Voraussetzungen: Windows x64, Node.js 22.11+ mit Vite-6-Unterstützung, Python 3.9+ x64 (`py -3`), passende lokale virtuos-Installation. Es werden keine zusätzlichen Python-Pakete benötigt.
 
 ```powershell
@@ -32,6 +52,7 @@ Die Modellstruktur wird **nur auf Knopfdruck** geladen. Nach einem Modellwechsel
 
 - Einen **Bausteinnamen** aus dem Baum auf die mittlere Fläche ziehen: Es entsteht eine Modellreferenz mit allen direkten Ports und deren Werten. Unterbausteine können separat gezogen werden. Ein Portklick öffnet dessen Eigenschaften. Die Referenz ändert das virtuos-Modell nicht.
 - Ein **skalares Signal** ziehen: Eingänge werden als „Signal setzen“, Ausgänge als „Auf Signal warten“ eingefügt. Die Richtung steuert nur die Vorgabe im Editor; RemoteAPI-Schreibrechte werden davon unabhängig ermittelt.
+- Ein **Referenzsignal** (z. B. `VAxis`, `rfActors` oder `rfElements`) ziehen: Es entsteht eine einzelne Portreferenz mit Name, Pfad, Richtung und nativem Typ. Sie lässt sich verschieben, inspizieren, entfernen und im Projekt speichern. Referenzports werden nicht als Setz-/Warteschritte ausgeführt; ihre nicht skalaren Werte werden entsprechend gekennzeichnet.
 - Über **Ablaufschritte** weitere Setz-, Warte- und Zeitschritte nach dem ausgewählten Schritt einfügen. Jede Aktion lässt sich rechts konfigurieren. Das MVP führt genau einen linearen Pfad zwischen Start und Ende aus; Modellreferenzen gehören nicht zu diesem Ausführungspfad.
 - Signale über das Augensymbol in den Monitor aufnehmen. Dort kann ein beobachtetes numerisches Signal für den Verlauf gewählt werden. Die Zeitachse verwendet **Empfangszeit**, keine behauptete Solverzeit.
 - **Starten** führt den Ablauf aus. **Pause**, **Stop** und **Ablauf zurücksetzen** betreffen nur die Ablaufsteuerung; virtuos und seine Simulation laufen weiter. Signalwerte und eigene Forces bleiben bis zur Freigabe erhalten.

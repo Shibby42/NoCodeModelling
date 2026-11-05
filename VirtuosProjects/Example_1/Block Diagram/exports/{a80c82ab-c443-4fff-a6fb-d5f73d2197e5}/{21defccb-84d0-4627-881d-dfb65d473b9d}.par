@@ -1,0 +1,43 @@
+/*********************************************************/
+// {21defccb-84d0-4627-881d-dfb65d473b9d}.par
+// Erstellt am 05.11.2026 , 13:32
+// von Virtuos v3.8.19
+/*********************************************************/
+InitialMaterialType = 1;
+TimedMode = 0;
+FirstLoadingDelay = 0.5;
+InitialLoadingInterval = 10;
+LoadingRestrictions.ForceMaterialLoading = 0;
+LoadingRestrictions.MaximumNumberOfMaterialsToLoad = -1;
+UseMaterialAnchor = 0;
+MasterMaterialType = 0;
+AutoFitMasterMaterial = 1;
+MaterialAlignmentSettings.X = 0;
+MaterialAlignmentSettings.Y = 0;
+MaterialAlignmentSettings.Z = 1;
+MaterialAlignmentSettings.AlignToBodyId = 1;
+MaterialAlignmentSettings.AlignToObjectId = 1;
+EnableStacking = 0;
+StackParameters.MaximumNumberOfMaterials.X = 2;
+StackParameters.MaximumNumberOfMaterials.Y = 2;
+StackParameters.MaximumNumberOfMaterials.Z = 2;
+StackParameters.InitialNumberOfMaterials.X = 2;
+StackParameters.InitialNumberOfMaterials.Y = 2;
+StackParameters.InitialNumberOfMaterials.Z = 2;
+StackParameters.InitialGap.X_m = 0.01;
+StackParameters.InitialGap.Y_m = 0.01;
+StackParameters.InitialGap.Z_m = 0;
+EnableIDData = 0;
+InitialVelocity.X_m_s = 0;
+InitialVelocity.Y_m_s = 0;
+InitialVelocity.Z_m_s = 0;
+InitiallyPoweredOn = 1;
+Position_RelativeToWorld.X_m = -0.56506599999999996;
+Position_RelativeToWorld.Y_m = -2.6820599999999999;
+Position_RelativeToWorld.Z_m = 0.30803799999999998;
+Rotation_RelativeToWorld.RotationAxis.X = 0;
+Rotation_RelativeToWorld.RotationAxis.Y = 0;
+Rotation_RelativeToWorld.RotationAxis.Z = 1;
+Rotation_RelativeToWorld.RotationAngle_deg = 0;
+$COLLISION_CLUSTER = 0;
+$COLLISION_GROUP = 0;

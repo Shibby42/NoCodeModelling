@@ -5,6 +5,7 @@ import type { Connection } from '@xyflow/react';
 import { LiveRemoteAdapter, createEmptyProject, defaultConfig, disconnectedState, emptyCatalog, findBranch, type ConnectionConfig } from './adapters/live';
 import { SequenceEngine } from './core/engine';
 import { autoLayout, parseProject, validateProject } from './core/project';
+import { insertPortReference } from './core/references';
 import { editorModules, type ModelCatalog, type Project, type RunStatus, type SignalValue, type Step, type StepKind } from './core/types';
 import FlowEditor from './components/FlowEditor';
 import SignalTree from './components/SignalTree';
@@ -135,8 +136,10 @@ export default function App() {
 
   const addStep = (kind: StepKind, signalId?: string, position?: { x: number; y: number }) => {
     if (editingLocked) return;
-    const signal = catalog.signals.find(s => s.id === signalId) ?? catalog.signals.find(s => kind === 'set' ? s.writable : !s.writable);
-    if (signal?.type === 'Unsupported') { showNotice('Dieser Referenzport ist kein skalares Steuersignal. Ziehe den zugehörigen Baustein als Modellreferenz ins Diagramm.', true); return; }
+    const signal = kind === 'set' || kind === 'wait'
+      ? catalog.signals.find(s => s.id === signalId) ?? catalog.signals.find(s => s.type !== 'Unsupported' && s.readable !== false && (kind !== 'set' || s.writable))
+      : undefined;
+    if (signal && (signal.type === 'Unsupported' || signal.readable === false)) { addPortReference(signal.id, position ?? { x: 320, y: 100 }); return; }
     const id = crypto.randomUUID();
     const step: Step = {
       id, kind, label: kind === 'set' ? 'Signal setzen' : kind === 'wait' ? 'Auf Signal warten' : 'Zeit warten',
@@ -173,7 +176,7 @@ export default function App() {
         links = links.filter(l => l.source !== id && l.target !== id);
         if (before && after && before.source !== after.target) links.push({ id: crypto.randomUUID(), source: before.source, target: after.target });
       }
-      return { ...old, steps: old.steps.filter(s => !removable.includes(s.id)), blocks: old.blocks?.filter(b => !ids.includes(b.id)), links };
+      return { ...old, steps: old.steps.filter(s => !removable.includes(s.id)), blocks: old.blocks?.filter(b => !ids.includes(b.id)), portReferences: old.portReferences?.filter(p => !ids.includes(p.id)), links };
     });
     if (selectedId && ids.includes(selectedId)) setSelectedId(null);
   };
@@ -219,6 +222,12 @@ export default function App() {
     const id = crypto.randomUUID();
     setProject(old => ({ ...old, blocks: [...(old.blocks ?? []), { id, blockId, position }] })); selectStep(id);
   };
+  const addPortReference = (signalId: string, position: { x: number; y: number }) => {
+    if (editingLocked || !catalog.signals.some(signal => signal.id === signalId)) return;
+    const id = crypto.randomUUID();
+    setProject(old => insertPortReference(old, catalog, signalId, position, id));
+    setSelectedId(id); selectSignal(signalId);
+  };
   const toggleWatch = (id: string) => setWatched(old => old.includes(id) ? old.filter(s => s !== id) : [...old, id]);
   const validate = () => { const errors = validateProject(project, catalog); setValidation(errors); showNotice(errors.length ? `${errors.length} Fehler im Ablauf gefunden.` : 'Ablauf geprüft. Alle Schritte sind gültig.', errors.length > 0); };
 
@@ -251,8 +260,9 @@ export default function App() {
             onPositions={positions => setProject(old => ({ ...old,
               steps: old.steps.map(s => { const p = positions.find(p => p.id === s.id); return p ? { ...s, position: { x: p.x, y: p.y } } : s; }),
               blocks: old.blocks?.map(b => { const p = positions.find(p => p.id === b.id); return p ? { ...b, position: { x: p.x, y: p.y } } : b; }),
+              portReferences: old.portReferences?.map(reference => { const p = positions.find(p => p.id === reference.id); return p ? { ...reference, position: { x: p.x, y: p.y } } : reference; }),
             }))}
-            onDelete={deleteSteps} onEdgesDelete={ids => { if (!editingLocked && ids.length) setProject(old => ({ ...old, links: old.links.filter(l => !ids.includes(l.id)) })); }} onConnect={connect} onAdd={addStep} onAddBlock={addBlock} />
+            onDelete={deleteSteps} onEdgesDelete={ids => { if (!editingLocked && ids.length) setProject(old => ({ ...old, links: old.links.filter(l => !ids.includes(l.id)) })); }} onConnect={connect} onAdd={addStep} onAddBlock={addBlock} onAddPortReference={addPortReference} />
           <Monitor catalog={catalog} values={values} errors={session.errors} stale={session.stale || !session.connected} updatedAt={session.updatedAt} watched={watched} snapshot={snapshot} onUnwatch={toggleWatch} onSelectSignal={selectSignal} />
         </main>
         <Inspector step={selectedStep} index={project.steps.findIndex(s => s.id === selectedId)} catalog={catalog} values={values} session={session} selectedSignalId={selectedSignalId} mode={inspectorMode} onMode={setInspectorMode} locked={editingLocked} active={snapshot.activeId === selectedId} stepElapsedMs={snapshot.stepElapsedMs} onChange={updateStep} onDelete={() => selectedId && deleteSteps([selectedId])} onForce={(id, value) => void force(id, value)} />

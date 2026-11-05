@@ -1,0 +1,37 @@
+/*********************************************************/
+// {93543dc8-0dc0-4220-804a-82ec50306ef4}.par
+// Erstellt am 05.11.2026 , 13:32
+// von Virtuos v3.8.19
+/*********************************************************/
+AxisType = 1;
+MotionDirection = 2;
+InitialControlType = 1;
+AxisPositionOfModeledPose = 0;
+InitialCommandPosition = 0;
+InitialCommandVelocity = 0;
+CollisionDetection = 1;
+VisualizePrimitive = 1;
+MotionRange = 0;
+MotionRangeLowerLimit = -1;
+MotionRangeUpperLimit = 1;
+MovementSettings.ForceMovementInCaseOfCollisions = 0;
+Geometry.Length_m = 0.050000000000000003;
+Geometry.Width_m = 0.050000000000000003;
+Geometry.Height_m = 0.241065;
+PhysicalProperties.VelocityDependentFriction = 0.5;
+Offset_Position_CollisionObject.X_m = 0;
+Offset_Position_CollisionObject.Y_m = 0;
+Offset_Position_CollisionObject.Z_m = -0.095530000000000004;
+Offset_Rotation_CollisionObject.RotationAxis.X = 0;
+Offset_Rotation_CollisionObject.RotationAxis.Y = 0;
+Offset_Rotation_CollisionObject.RotationAxis.Z = 1;
+Offset_Rotation_CollisionObject.RotationAngle_deg = 0;
+Position_RelativeToWorld.X_m = 0.739062;
+Position_RelativeToWorld.Y_m = -3.2759200000000002;
+Position_RelativeToWorld.Z_m = 0.080000000000000002;
+Rotation_RelativeToWorld.RotationAxis.X = -1;
+Rotation_RelativeToWorld.RotationAxis.Y = 0;
+Rotation_RelativeToWorld.RotationAxis.Z = 0;
+Rotation_RelativeToWorld.RotationAngle_deg = 90;
+$COLLISION_CLUSTER = 0;
+$COLLISION_GROUP = 0;

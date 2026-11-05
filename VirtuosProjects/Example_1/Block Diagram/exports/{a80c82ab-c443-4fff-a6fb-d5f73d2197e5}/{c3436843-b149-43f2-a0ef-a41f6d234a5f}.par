@@ -1,0 +1,26 @@
+/*********************************************************/
+// {c3436843-b149-43f2-a0ef-a41f6d234a5f}.par
+// Erstellt am 05.11.2026 , 13:32
+// von Virtuos v3.8.19
+/*********************************************************/
+InitiallyPoweredOn = 1;
+InitialTargetSpeed = 0;
+InitialAngle = 0;
+ReferencePointForPositioning = 0;
+EnableSpeedDependentColoring = 1;
+Geometry.Length_m = 1.92652;
+Geometry.Width_m = 0.5;
+Geometry.Height_m = 0.10000000000000001;
+AdditionalHeightRig = 0;
+PhysicalProperties.VelocityDependentFriction = 0.5;
+MaterialMovementBehavior.DiscreteMaterialTransition = 0;
+UseTimeStepNormalizedImpulses = 0;
+Position_RelativeToWorld.X_m = -0.673952;
+Position_RelativeToWorld.Y_m = -2.70811;
+Position_RelativeToWorld.Z_m = 0;
+Rotation_RelativeToWorld.RotationAxis.X = 0;
+Rotation_RelativeToWorld.RotationAxis.Y = 0;
+Rotation_RelativeToWorld.RotationAxis.Z = 1;
+Rotation_RelativeToWorld.RotationAngle_deg = 0;
+$COLLISION_CLUSTER = 0;
+$COLLISION_GROUP = 0;

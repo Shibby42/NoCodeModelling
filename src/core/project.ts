@@ -87,6 +87,18 @@ export function parseProject(text: string): Project {
       ids.add(block.id);
     }
   }
+  if (value.portReferences !== undefined) {
+    if (!Array.isArray(value.portReferences) || value.portReferences.length > 500) throw new Error('Ungültige Portreferenzen.');
+    const ids = new Set<string>([...value.steps.map(s => s.id), ...(Array.isArray(value.blocks) ? value.blocks.map(b => b.id) : [])]);
+    for (const reference of value.portReferences) {
+      if (!isRecord(reference) || typeof reference.id !== 'string' || !reference.id
+        || typeof reference.signalId !== 'string' || !reference.signalId
+        || !isRecord(reference.position) || typeof reference.position.x !== 'number' || !Number.isFinite(reference.position.x)
+        || typeof reference.position.y !== 'number' || !Number.isFinite(reference.position.y)
+        || ids.has(reference.id)) throw new Error('Ungültige Portreferenz.');
+      ids.add(reference.id);
+    }
+  }
   return value as unknown as Project;
 }
 

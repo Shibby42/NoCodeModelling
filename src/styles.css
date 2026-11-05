@@ -343,6 +343,18 @@ svg { flex-shrink: 0; }
 .port-name { flex: 1; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .model-port code { font-size: 10px; color: var(--cyan-dark); max-width: 85px; overflow: hidden; text-overflow: ellipsis; }
 .model-block-footer { padding: 8px 12px; font-size: 8px; color: #94A3B8; background: #F8FAFC; border-top: 1px solid var(--border); }
+.port-reference-node { width: 280px; background: white; border: 1px solid #CBD5E1; border-radius: 8px; overflow: hidden; }
+.port-reference-node.selected { border-color: var(--cyan); box-shadow: 0 0 0 3px #009FE311; }
+.port-reference-heading { display: flex; align-items: center; gap: 7px; padding: 6px 11px; background: #F0F9FF; border-bottom: 1px solid #BAE6FD; color: var(--cyan-dark); }
+.port-reference-heading > span { flex: 1; font-size: 8px; letter-spacing: 1px; }
+.port-reference-title { display: block; padding: 12px 12px 7px; font-size: 12px; overflow-wrap: anywhere; }
+.port-reference-meta { display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 9px; color: #64748B; }
+.port-reference-status { display: flex; align-items: flex-start; gap: 6px; padding: 8px 12px 12px; color: #64748B; font-size: 9px; line-height: 1.6; }
+.port-reference-status svg { margin-top: 1px; color: #94A3B8; }
+.port-reference-value { padding: 0 12px 12px; font-size: 18px; color: var(--cyan-dark); }
+.port-reference-value small { font-size: 10px; margin-left: 5px; }
+.port-reference-inspect { width: 100%; padding: 9px 12px; border: 0; border-top: 1px solid var(--border); color: var(--cyan-dark); background: #F8FAFC; text-align: left; font-size: 9px; }
+.port-reference-inspect:hover { background: #E0F2FE; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
 @media (min-width: 1600px) { .workspace { grid-template-columns: 280px minmax(400px, 1fr) 310px; } .signal-item, .signal-name { font-size: 11px; } .signal-row { margin-left: 34px; } .field-label { font-size: 11px; } .monitor { height: 235px; } .chart-panel > svg { height: 149px; } }

@@ -53,6 +53,7 @@ export interface Step {
 
 export interface Link { id: string; source: string; target: string }
 export interface ModelBlockPlacement { id: string; blockId: string; position: { x: number; y: number } }
+export interface PortReferencePlacement { id: string; signalId: string; position: { x: number; y: number } }
 export interface Project {
   version: 1;
   name: string;
@@ -60,6 +61,7 @@ export interface Project {
   steps: Step[];
   links: Link[];
   blocks?: ModelBlockPlacement[];
+  portReferences?: PortReferencePlacement[];
 }
 
 export type RunStatus = 'idle' | 'running' | 'paused' | 'completed' | 'stopped' | 'error';

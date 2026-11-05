@@ -1,0 +1,15 @@
+/*********************************************************/
+// {edf58935-455a-4116-9647-e66021bba3a9}.par
+// Erstellt am 05.11.2026 , 13:32
+// von Virtuos v3.8.19
+/*********************************************************/
+Position_RelativeToWorld.X_m = 0.82029600000000003;
+Position_RelativeToWorld.Y_m = -2.6946099999999999;
+Position_RelativeToWorld.Z_m = 0.13;
+Rotation_RelativeToWorld.RotationAxis.X = 0;
+Rotation_RelativeToWorld.RotationAxis.Y = 0;
+Rotation_RelativeToWorld.RotationAxis.Z = 1;
+Rotation_RelativeToWorld.RotationAngle_deg = 90;
+Geometry.Length_m = 0.5;
+$COLLISION_CLUSTER = 0;
+$COLLISION_GROUP = 0;
